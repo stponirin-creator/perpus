@@ -5,7 +5,7 @@
  *  - Request POST (panggilan API GAS) => TIDAK di-cache, selalu ke network.
  *  Naikkan versi cache di bawah setiap kali app.js / app.css berubah agar update terpasang.
  */
-var CACHE = 'perpus-v1';
+var CACHE = 'perpus-v2';
 var SHELL = ['./', './index.html', './app.css', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (e) {

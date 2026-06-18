@@ -2,7 +2,7 @@
    KONFIGURASI  -> GANTI DENGAN URL WEB APP /exec ANDA
    ====================================================================== */
 var CONFIG = {
-  API: 'https://script.google.com/macros/s/AKfycbwJniXjn_ga1r_fxIMo0svRNjLH82n9gZytoHUIgRKp90Kw9aSz5VqkQegVThIkZMh5/exec'
+  API: 'https://script.google.com/macros/s/XXXXXXXXXXXXXXXXX/exec'
 };
 
 /* Tangkap error apa pun supaya halaman tidak "blank" diam-diam:
@@ -285,8 +285,8 @@ function renderOpac(){
         '<h1 class="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight">Jelajahi Koleksi <span class="text-emerald-300">Perpustakaan</span></h1>'+
         '<p class="mt-4 text-emerald-100/90 max-w-xl mx-auto text-lg">Cari ribuan judul buku &amp; cek ketersediaan real-time — tanpa perlu login.</p>'+
         '<div class="mt-8 max-w-xl mx-auto flex gap-2 bg-white/10 p-2 rounded-2xl ring-1 ring-white/15 backdrop-blur">'+
-          '<input id="opac-q" placeholder="Cari judul, pengarang, kategori..." class="flex-1 px-4 py-3 rounded-xl text-platinum-900 outline-none" onkeydown="if(event.key===\'Enter\')opacSearch()"/>'+
-          '<button onclick="opacSearch()" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl shadow-sm transition active:scale-95">Cari</button>'+
+          '<input id="opac-q" placeholder="Cari judul, pengarang, kategori..." class="flex-1 min-w-0 px-4 py-3 rounded-xl text-platinum-900 outline-none" onkeydown="if(event.key===\'Enter\')opacSearch()"/>'+
+          '<button onclick="opacSearch()" class="shrink-0 px-5 sm:px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl shadow-sm transition active:scale-95">Cari</button>'+
         '</div>'+
       '</div>'+
     '</section>'+
