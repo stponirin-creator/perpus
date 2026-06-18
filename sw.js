@@ -1,11 +1,13 @@
 /* Service Worker — Perpustakaan Sekolah PWA
  * Strategi:
- *  - App shell (html, css, js, ikon) di-precache => buka INSTAN & jalan OFFLINE.
- *  - Aset GET lain (font, library CDN) => stale-while-revalidate (di-cache saat online).
- *  - Request POST (panggilan API GAS) => TIDAK di-cache, selalu ke network.
- *  Naikkan versi cache di bawah setiap kali app.js / app.css berubah agar update terpasang.
+ *  - Kode aplikasi (HTML/JS/CSS, same-origin) => NETWORK-FIRST.
+ *      Saat ONLINE selalu ambil versi terbaru (jadi update app.js langsung kepakai),
+ *      saat OFFLINE pakai cache (app tetap terbuka).
+ *  - Library CDN & font (cross-origin) => CACHE-FIRST (di-cache saat online sekali).
+ *  - Request POST (panggilan API GAS) => TIDAK disentuh, selalu ke network.
+ *  Naikkan versi cache di bawah setiap kali app.js / app.css diubah.
  */
-var CACHE = 'perpus-v2';
+var CACHE = 'perpus-v3';
 var SHELL = ['./', './index.html', './app.css', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (e) {
@@ -25,27 +27,37 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
   var req = e.request;
+  if (req.method !== 'GET') return; // POST ke API GAS lewat ke network apa adanya
 
-  // Biarkan request non-GET (POST ke API GAS) lewat ke network apa adanya.
-  if (req.method !== 'GET') return;
+  var url = new URL(req.url);
+  var sameOrigin = (url.origin === self.location.origin);
 
-  // Navigasi halaman: coba network, kalau offline pakai index.html dari cache.
-  if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(function () { return caches.match('./index.html'); }));
+  // Kode aplikasi & navigasi => network-first (selalu terbaru saat online).
+  if (req.mode === 'navigate' || sameOrigin) {
+    e.respondWith(
+      fetch(req).then(function (res) {
+        if (res && res.status === 200) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        }
+        return res;
+      }).catch(function () {
+        return caches.match(req).then(function (m) { return m || caches.match('./index.html'); });
+      })
+    );
     return;
   }
 
-  // Aset GET (lokal + CDN): stale-while-revalidate.
+  // Library CDN / font => cache-first (lalu simpan saat pertama online).
   e.respondWith(
     caches.match(req).then(function (cached) {
-      var net = fetch(req).then(function (res) {
+      return cached || fetch(req).then(function (res) {
         if (res && (res.status === 200 || res.type === 'opaque')) {
           var copy = res.clone();
           caches.open(CACHE).then(function (c) { c.put(req, copy); });
         }
         return res;
-      }).catch(function () { return cached; });
-      return cached || net;
+      });
     })
   );
 });
