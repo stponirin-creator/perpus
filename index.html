@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Perpustakaan Sekolah</title>
+
+<!-- PWA -->
+<meta name="theme-color" content="#0f3d33"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Perpustakaan"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
+<link rel="icon" href="icon.svg"/>
+
+<link rel="stylesheet" href="app.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="app" style="padding:24px;font-family:sans-serif;color:#566263">Memuat aplikasi…</div>
+<div id="toast-wrap" class="fixed bottom-5 right-5 z-50 space-y-2 no-print"></div>
+<div id="modal-wrap"></div>
+<button id="btn-pasang" onclick="pasangPWA()" class="hidden fixed right-4 bottom-24 md:bottom-4 z-50 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-prem no-print">📲 Pasang Aplikasi</button>
+
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function (e) { console.warn('SW gagal', e); });
+  });
+}
+</script>
+</body>
+</html>
