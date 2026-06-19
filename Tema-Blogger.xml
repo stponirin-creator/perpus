@@ -94,7 +94,7 @@
    KONFIGURASI  -> GANTI DENGAN URL WEB APP /exec ANDA
    ====================================================================== */
 var CONFIG = {
-  API: 'https://script.google.com/macros/s/XXXXXXXXXXXXXXXXX/exec'
+  API: 'https://script.google.com/macros/s/AKfycbwJniXjn_ga1r_fxIMo0svRNjLH82n9gZytoHUIgRKp90Kw9aSz5VqkQegVThIkZMh5/exec'
 };
 
 /* Tangkap error apa pun supaya halaman tidak "blank" diam-diam:
@@ -608,34 +608,59 @@ function viewDashboard(){
 /* ======================================================================
    BUKU
    ====================================================================== */
+/* ---- Paginasi (client-side) ---- */
+var PAGE_SIZE=10;
+var _pgBuku=1, _rowsBuku=[];
+var _pgMember=1, _rowsMember=[];
+function pager(total, page, size, fn){
+  var pages=Math.ceil(total/size)||1;
+  var from=total?((page-1)*size+1):0, to=Math.min(page*size,total);
+  var info='<div class="text-xs text-platinum-400">Menampilkan '+from+'–'+to+' dari '+total+' data</div>';
+  if(pages<=1) return '<div class="mt-3">'+info+'</div>';
+  function b(n,label,active,disabled){
+    return '<button '+(disabled?'disabled':'onclick="'+fn+'('+n+')"')+' style="min-width:38px" class="px-3 py-1.5 rounded-lg text-sm '+(active?'bg-emerald-600 text-white':'bg-white border border-platinum-200 text-platinum-600 hover:bg-platinum-50')+(disabled?' opacity-40':'')+'">'+label+'</button>';
+  }
+  var btns=b(page-1,'‹',false,page<=1);
+  var start=Math.max(1,page-2), end=Math.min(pages,page+2);
+  if(start>1){ btns+=b(1,'1',page===1,false); if(start>2) btns+='<span class="px-1 text-platinum-400">…</span>'; }
+  for(var i=start;i<=end;i++) btns+=b(i,String(i),i===page,false);
+  if(end<pages){ if(end<pages-1) btns+='<span class="px-1 text-platinum-400">…</span>'; btns+=b(pages,String(pages),page===pages,false); }
+  btns+=b(page+1,'›',false,page>=pages);
+  return '<div class="flex flex-wrap items-center justify-between gap-3 mt-4">'+info+'<div class="flex items-center gap-1">'+btns+'</div></div>';
+}
+
 function viewBuku(){
   shellAdmin('buku',
     '<div class="flex flex-wrap gap-3 items-center justify-between mb-4">'+
-      '<input id="buku-cari" placeholder="Cari buku..." class="px-4 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 w-full sm:w-64" oninput="loadBuku()"/>'+
+      '<input id="buku-cari" placeholder="Cari buku..." class="px-4 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 w-full sm:w-64" oninput="_pgBuku=1;loadBuku()"/>'+
       '<div class="flex gap-2">'+btn('⬇ Export','eksporData(\'buku\')','px-4 py-2 bg-white border border-platinum-300 text-platinum-700 hover:bg-platinum-50 text-sm font-semibold rounded-xl')+btn('⬆ Import','formImport(\'buku\')','px-4 py-2 bg-platinum-800 hover:bg-platinum-900 text-white text-sm font-semibold rounded-xl shadow-sm')+btn('+ Tambah Buku','formBuku()')+'</div>'+
     '</div><div id="buku-list">'+skelTable(6,6)+'</div>');
   loadBuku();
 }
 function loadBuku(){
   var q = el('buku-cari')?el('buku-cari').value:'';
-  api('bukuList',{cari:q}).then(function(rows){
-    var isAdmin = state.user.role==='Admin';
-    var body = rows.map(function(b){
-      return '<tr class="hover:bg-platinum-50">'+
-        '<td class="px-4 py-3 font-mono text-xs">'+esc(b.id_buku)+'</td>'+
-        '<td class="px-4 py-3"><div class="font-medium text-platinum-900">'+esc(b.judul)+'</div><div class="text-xs text-platinum-400">'+esc(b.pengarang||'')+'</div></td>'+
-        '<td class="px-4 py-3">'+esc(b.kategori||'-')+'</td>'+
-        '<td class="px-4 py-3">'+esc(b.rak||'-')+'</td>'+
-        '<td class="px-4 py-3"><span class="'+(b.stok_tersedia>0?'text-emerald-700':'text-rose-600')+' font-semibold">'+b.stok_tersedia+'</span>/'+b.stok_total+'</td>'+
-        '<td class="px-4 py-3 text-right whitespace-nowrap">'+
-          '<button onclick="lihatEksemplar(\''+b.id_buku+'\')" class="text-blue-600 hover:underline text-sm mr-3">Eksemplar</button>'+
-          '<button onclick=\'formBuku('+JSON.stringify(JSON.stringify(b))+')\' class="text-emerald-700 hover:underline text-sm mr-3">Edit</button>'+
-          (isAdmin?'<button onclick="hapusBuku(\''+b.id_buku+'\')" class="text-rose-600 hover:underline text-sm">Hapus</button>':'')+
-        '</td></tr>';
-    }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-platinum-400">Belum ada buku.</td></tr>';
-    el('buku-list').innerHTML = tableWrap(['Kode','Judul','Kategori','Rak','Stok','Aksi'],body);
-  }).catch(function(e){ toast(e.message,false); });
+  api('bukuList',{cari:q}).then(function(rows){ _rowsBuku=rows||[]; renderBuku(); }).catch(function(e){ toast(e.message,false); });
 }
+function renderBuku(){
+  var rows=_rowsBuku, total=rows.length, isAdmin=state.user.role==='Admin';
+  var pages=Math.ceil(total/PAGE_SIZE)||1; if(_pgBuku>pages)_pgBuku=pages; if(_pgBuku<1)_pgBuku=1;
+  var slice=rows.slice((_pgBuku-1)*PAGE_SIZE, _pgBuku*PAGE_SIZE);
+  var body = slice.map(function(b){
+    return '<tr class="hover:bg-platinum-50">'+
+      '<td class="px-4 py-3 font-mono text-xs">'+esc(b.id_buku)+'</td>'+
+      '<td class="px-4 py-3"><div class="font-medium text-platinum-900">'+esc(b.judul)+'</div><div class="text-xs text-platinum-400">'+esc(b.pengarang||'')+'</div></td>'+
+      '<td class="px-4 py-3">'+esc(b.kategori||'-')+'</td>'+
+      '<td class="px-4 py-3">'+esc(b.rak||'-')+'</td>'+
+      '<td class="px-4 py-3"><span class="'+(b.stok_tersedia>0?'text-emerald-700':'text-rose-600')+' font-semibold">'+b.stok_tersedia+'</span>/'+b.stok_total+'</td>'+
+      '<td class="px-4 py-3 text-right whitespace-nowrap">'+
+        '<button onclick="lihatEksemplar(\''+b.id_buku+'\')" class="text-blue-600 hover:underline text-sm mr-3">Eksemplar</button>'+
+        '<button onclick=\'formBuku('+JSON.stringify(JSON.stringify(b))+')\' class="text-emerald-700 hover:underline text-sm mr-3">Edit</button>'+
+        (isAdmin?'<button onclick="hapusBuku(\''+b.id_buku+'\')" class="text-rose-600 hover:underline text-sm">Hapus</button>':'')+
+      '</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-platinum-400">Belum ada buku.</td></tr>';
+  el('buku-list').innerHTML = tableWrap(['Kode','Judul','Kategori','Rak','Stok','Aksi'],body) + pager(total,_pgBuku,PAGE_SIZE,'gotoBuku');
+}
+function gotoBuku(n){ _pgBuku=n; renderBuku(); }
 function formBuku(json){
   var b = json?JSON.parse(json):{};
   modal(
@@ -688,30 +713,35 @@ function lihatEksemplar(id){
 function viewMember(){
   shellAdmin('member',
     '<div class="flex flex-wrap gap-3 items-center justify-between mb-4">'+
-      '<div class="flex gap-2 w-full sm:w-auto"><input id="mb-cari" placeholder="Cari member..." class="flex-1 sm:flex-none sm:w-56 px-4 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500" oninput="loadMember()"/>'+
-      '<select id="mb-filter" onchange="loadMember()" class="px-3 py-2.5 rounded-xl border border-platinum-200"><option value="">Semua</option><option>Siswa</option><option>Guru</option></select></div>'+
+      '<div class="flex gap-2 w-full sm:w-auto"><input id="mb-cari" placeholder="Cari member..." class="flex-1 sm:flex-none sm:w-56 px-4 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500" oninput="_pgMember=1;loadMember()"/>'+
+      '<select id="mb-filter" onchange="_pgMember=1;loadMember()" class="px-3 py-2.5 rounded-xl border border-platinum-200"><option value="">Semua</option><option>Siswa</option><option>Guru</option></select></div>'+
       '<div class="flex gap-2">'+btn('⬇ Export','eksporData(\'member\')','px-4 py-2 bg-white border border-platinum-300 text-platinum-700 hover:bg-platinum-50 text-sm font-semibold rounded-xl')+btn('⬆ Import','formImport(\'member\')','px-4 py-2 bg-platinum-800 hover:bg-platinum-900 text-white text-sm font-semibold rounded-xl shadow-sm')+btn('+ Tambah Member','formMember()')+'</div>'+
     '</div><div id="member-list">'+skelTable(6,6)+'</div>');
   loadMember();
 }
 function loadMember(){
-  api('memberList',{cari:el('mb-cari')?el('mb-cari').value:'', status:el('mb-filter')?el('mb-filter').value:''}).then(function(rows){
-    var isAdmin = state.user.role==='Admin';
-    var body = rows.map(function(m){
-      return '<tr class="hover:bg-platinum-50">'+
-        '<td class="px-4 py-3 font-mono text-xs">'+esc(m.id_member)+'</td>'+
-        '<td class="px-4 py-3"><div class="font-medium text-platinum-900">'+esc(m.nama)+'</div><div class="text-xs text-platinum-400">'+esc(m.nis_nip||'')+'</div></td>'+
-        '<td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs '+(m.status==='Guru'?'bg-blue-50 text-blue-700':'bg-emerald-50 text-emerald-700')+'">'+esc(m.status)+'</span></td>'+
-        '<td class="px-4 py-3">'+esc(m.kelas_jabatan||'-')+'</td>'+
-        '<td class="px-4 py-3">'+esc(m.no_wa||'-')+'</td>'+
-        '<td class="px-4 py-3 text-right whitespace-nowrap">'+
-          '<button onclick=\'formMember('+JSON.stringify(JSON.stringify(m))+')\' class="text-emerald-700 hover:underline text-sm mr-3">Edit</button>'+
-          (isAdmin?'<button onclick="hapusMember(\''+m.id_member+'\')" class="text-rose-600 hover:underline text-sm">Hapus</button>':'')+
-        '</td></tr>';
-    }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-platinum-400">Belum ada member.</td></tr>';
-    el('member-list').innerHTML = tableWrap(['ID','Nama','Status','Kelas/Jabatan','WhatsApp','Aksi'],body);
-  }).catch(function(e){ toast(e.message,false); });
+  api('memberList',{cari:el('mb-cari')?el('mb-cari').value:'', status:el('mb-filter')?el('mb-filter').value:''})
+    .then(function(rows){ _rowsMember=rows||[]; renderMember(); }).catch(function(e){ toast(e.message,false); });
 }
+function renderMember(){
+  var rows=_rowsMember, total=rows.length, isAdmin=state.user.role==='Admin';
+  var pages=Math.ceil(total/PAGE_SIZE)||1; if(_pgMember>pages)_pgMember=pages; if(_pgMember<1)_pgMember=1;
+  var slice=rows.slice((_pgMember-1)*PAGE_SIZE, _pgMember*PAGE_SIZE);
+  var body = slice.map(function(m){
+    return '<tr class="hover:bg-platinum-50">'+
+      '<td class="px-4 py-3 font-mono text-xs">'+esc(m.id_member)+'</td>'+
+      '<td class="px-4 py-3"><div class="font-medium text-platinum-900">'+esc(m.nama)+'</div><div class="text-xs text-platinum-400">'+esc(m.nis_nip||'')+'</div></td>'+
+      '<td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-xs '+(m.status==='Guru'?'bg-blue-50 text-blue-700':'bg-emerald-50 text-emerald-700')+'">'+esc(m.status)+'</span></td>'+
+      '<td class="px-4 py-3">'+esc(m.kelas_jabatan||'-')+'</td>'+
+      '<td class="px-4 py-3">'+esc(m.no_wa||'-')+'</td>'+
+      '<td class="px-4 py-3 text-right whitespace-nowrap">'+
+        '<button onclick=\'formMember('+JSON.stringify(JSON.stringify(m))+')\' class="text-emerald-700 hover:underline text-sm mr-3">Edit</button>'+
+        (isAdmin?'<button onclick="hapusMember(\''+m.id_member+'\')" class="text-rose-600 hover:underline text-sm">Hapus</button>':'')+
+      '</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="px-4 py-8 text-center text-platinum-400">Belum ada member.</td></tr>';
+  el('member-list').innerHTML = tableWrap(['ID','Nama','Status','Kelas/Jabatan','WhatsApp','Aksi'],body) + pager(total,_pgMember,PAGE_SIZE,'gotoMember');
+}
+function gotoMember(n){ _pgMember=n; renderMember(); }
 function formMember(json){
   var m = json?JSON.parse(json):{status:'Siswa'};
   modal(
