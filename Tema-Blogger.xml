@@ -313,12 +313,37 @@ function cariISBN(isbn){
   if(isbn.length<10){ toast('ISBN tidak valid (min. 10 digit).',false); return; }
   loading(true);
   isbnGoogle_(isbn).then(function(d){ return d || isbnOpenLibrary_(isbn); })
+    .then(function(d){ return d || isbnGooglePlain_(isbn); })
     .then(function(d){ loading(false);
-      if(!d){ toast('Buku tidak ditemukan untuk ISBN '+isbn+'.',false); return; }
+      if(!d){ toast('ISBN '+isbn+' tidak ada di database online (sering terjadi untuk buku terbitan lokal). Silakan isi manual.',false); return; }
       isiFormBuku_(d);
       toast('Data buku terisi otomatis ✓');
     })
     .catch(function(){ loading(false); toast('Gagal mengambil data (cek koneksi internet).',false); });
+}
+/* Buka pencarian Google untuk ISBN (bantuan manual saat tak ketemu otomatis). */
+function bukaGoogleBooks(){
+  var isbn=String(el('bk-isbn')?el('bk-isbn').value:'').replace(/[^0-9Xx]/g,'');
+  if(isbn.length<10){ toast('Isi/scan ISBN dulu.',false); return; }
+  window.open('https://www.google.com/search?q='+encodeURIComponent(isbn+' buku'), '_blank');
+}
+/* Sumber ke-3: pencarian Google mode bebas, diverifikasi agar cocok dgn ISBN. */
+function isbnGooglePlain_(isbn){
+  return fetch('https://www.googleapis.com/books/v1/volumes?q='+encodeURIComponent(isbn))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j || !j.items) return null;
+      for(var i=0;i<j.items.length;i++){
+        var v=j.items[i].volumeInfo||{};
+        var ids=(v.industryIdentifiers||[]).map(function(x){ return String(x.identifier).replace(/[^0-9Xx]/g,''); });
+        if(ids.indexOf(isbn)!==-1){
+          var cov=(v.imageLinks?(v.imageLinks.thumbnail||v.imageLinks.smallThumbnail||''):'').replace(/^http:/,'https:');
+          return { judul:v.title?(v.title+(v.subtitle?': '+v.subtitle:'')):'', pengarang:(v.authors||[]).join(', '),
+            penerbit:v.publisher||'', tahun:String(v.publishedDate||'').slice(0,4), kategori:(v.categories||[])[0]||'', cover:cov };
+        }
+      }
+      return null;
+    }).catch(function(){ return null; });
 }
 function isbnGoogle_(isbn){
   return fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:'+encodeURIComponent(isbn))
@@ -781,7 +806,9 @@ function formBuku(json){
           '<input id="bk-isbn" value="'+esc(b.isbn||'')+'" placeholder="cth: 9786020000011" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cariISBN(this.value)}"/>'+
           '<button type="button" onclick="cariISBN(el(\'bk-isbn\').value)" title="Cari data buku dari ISBN" class="shrink-0 w-12 grid place-items-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition">'+svg(ICON.search,'w-5 h-5')+'</button>'+
           scanBtn("scanInto('bk-isbn',cariISBN)")+
-        '</div></div>'+
+        '</div>'+
+        '<button type="button" onclick="bukaGoogleBooks()" class="text-xs text-emerald-700 hover:underline mt-1.5 inline-flex items-center gap-1">🔎 Cari di Google Books (jika tak terisi otomatis)</button>'+
+      '</div>'+
       inp('bk-penerbit','Penerbit',b.penerbit)+inp('bk-tahun','Tahun',b.tahun)+
       inp('bk-kategori','Kategori',b.kategori)+inp('bk-rak','Lokasi Rak',b.rak)+
       inp('bk-stok','Jumlah Eksemplar (stok total)',b.stok_total||1,'col-span-2','number')+
