@@ -19,11 +19,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
 <div id="app" style="padding:24px;font-family:sans-serif;color:#566263">Memuat aplikasi…</div>
 <div id="toast-wrap" class="fixed bottom-5 right-5 z-50 space-y-2 no-print"></div>
 <div id="modal-wrap"></div>
+<div id="scan-wrap"></div>
 <button id="btn-pasang" onclick="pasangPWA()" class="hidden fixed right-4 bottom-24 md:bottom-4 z-50 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-prem no-print">📲 Pasang Aplikasi</button>
 
 <script src="app.js"></script>
