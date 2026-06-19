@@ -1,10 +1,11 @@
 /**
- * build.mjs — Generate PWA (app.js, app.css, sw.js) dari Tema-Blogger.xml.
- * Tidak butuh dependensi: Tailwind sudah ter-inline di tema, jadi tinggal diekstrak.
+ * build.mjs — Generate PWA (app.js, app.css, sw.js, manifest, index) dari Tema-Blogger.xml.
+ * Tidak butuh dependensi (Tailwind sudah ter-inline di tema, tinggal diekstrak).
+ * Nama aplikasi (manifest + judul iOS) diambil OTOMATIS dari API (nama sekolah di Pengaturan).
  * Hasil ditaruh di folder dist/ untuk di-deploy ke GitHub Pages.
  *
  * Env:
- *   API_URL  -> URL Web App /exec (di-inject ke CONFIG.API). Diisi dari repo variable.
+ *   API_URL    -> URL Web App /exec (di-inject ke CONFIG.API & dipakai ambil nama sekolah).
  *   GITHUB_SHA -> dipakai untuk versi cache service worker (otomatis dari Actions).
  */
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
@@ -14,42 +15,72 @@ const API = (process.env.API_URL || '').trim();
 const VER = (process.env.GITHUB_SHA || String(Date.now())).slice(0, 8);
 
 function need(cond, msg) { if (!cond) { console.error('GAGAL: ' + msg); process.exit(1); } }
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-// 1) CSS Tailwind (sudah ter-inline di antara penanda CDATA)
+// ---- Ambil nama sekolah dari API (opsional; fallback bila gagal) ----
+let appName = 'Perpustakaan Sekolah';
+if (API) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'opacInfo', data: {} }),
+      redirect: 'follow',
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    const j = await res.json();
+    if (j && j.ok && j.data && j.data.nama_sekolah) appName = String(j.data.nama_sekolah).trim();
+    console.log('Nama sekolah dari API:', appName);
+  } catch (e) {
+    console.log('Peringatan: gagal ambil nama sekolah (' + e.message + '), pakai default.');
+  }
+}
+const shortName = appName.length <= 12 ? appName : appName.split(/\s+/)[0].slice(0, 12);
+
+// ---- 1) CSS Tailwind (sudah ter-inline) ----
 const tA = xml.indexOf('/*<![CDATA[*/');
 const tB = xml.indexOf('/*]]>*/', tA);
 need(tA >= 0 && tB >= 0, 'Blok CSS Tailwind tidak ditemukan di tema.');
 const tw = xml.slice(tA + '/*<![CDATA[*/'.length, tB).trim();
 
-// 2) CSS kustom (anchor ke blok yang benar, bukan blok Tailwind)
+// ---- 2) CSS kustom ----
 const a = xml.indexOf("body{font-family:'Inter'");
 need(a >= 0, 'Blok CSS kustom (body Inter) tidak ditemukan.');
-const open = xml.lastIndexOf('<style>', a);
-const close = xml.indexOf('</style>', a);
-const smallCss = xml.slice(open + '<style>'.length, close).trim();
+const smallCss = xml.slice(xml.lastIndexOf('<style>', a) + '<style>'.length, xml.indexOf('</style>', a)).trim();
 
-// 3) JavaScript aplikasi (blok <script> terakhir, antara //<![CDATA[ dan //]]> )
+// ---- 3) JavaScript aplikasi ----
 const parts = xml.split('<script>');
 let js = parts[parts.length - 1].split('</script>')[0].replace('//<![CDATA[', '').replace('//]]>', '').trim();
 need(js.indexOf('function api(') >= 0, 'JS aplikasi tidak ditemukan / tidak utuh.');
-// pakai manifest.json statis (bukan data URI dinamis)
 js = js.replace(/setLink_\('pwa-manifest','manifest','data:application\/manifest\+json,[\s\S]+?\)\);/, '/* manifest statis (manifest.json) dipakai utk PWA */');
-// inject URL Web App
 if (API) js = js.replace(/API:\s*'[^']*'/, "API: '" + API + "'");
 
-// 4) Susun dist/
+// ---- 4) Susun dist/ ----
 mkdirSync('dist', { recursive: true });
 writeFileSync('dist/app.css', tw + '\n\n/* ====== CSS kustom (animasi, dark, skeleton, gradient) ====== */\n' + smallCss + '\n');
 writeFileSync('dist/app.js', js + '\n');
-['index.html', 'manifest.json', 'icon.svg'].forEach(function (f) {
-  need(existsSync(f), 'File ' + f + ' tidak ada di repo.');
-  copyFileSync(f, 'dist/' + f);
-});
-// sw.js: naikkan versi cache otomatis tiap commit
+copyFileSync('icon.svg', 'dist/icon.svg');
+
+// manifest.json: nama aplikasi = nama sekolah
+const man = JSON.parse(readFileSync('manifest.json', 'utf8'));
+man.name = appName;
+man.short_name = shortName;
+writeFileSync('dist/manifest.json', JSON.stringify(man, null, 2));
+
+// index.html: judul iOS & <title> = nama sekolah
+let html = readFileSync('index.html', 'utf8');
+html = html.replace(/(name="apple-mobile-web-app-title"\s+content=")[^"]*(")/, '$1' + escHtml(appName) + '$2');
+html = html.replace(/<title>[\s\S]*?<\/title>/, '<title>' + escHtml(appName) + '</title>');
+writeFileSync('dist/index.html', html);
+
+// sw.js: versi cache otomatis tiap commit
 let sw = readFileSync('sw.js', 'utf8').replace(/var CACHE = '[^']*';/, "var CACHE = 'perpus-" + VER + "';");
 writeFileSync('dist/sw.js', sw);
 
 console.log('Build PWA selesai.');
-console.log('  API_URL di-inject :', API ? 'YA' : 'TIDAK (placeholder tetap — set repo variable API_URL!)');
-console.log('  Cache SW          : perpus-' + VER);
-console.log('  app.js / app.css  :', js.length, '/', (tw.length + smallCss.length), 'char');
+console.log('  Nama aplikasi    :', appName, '| short:', shortName);
+console.log('  API_URL inject   :', API ? 'YA' : 'TIDAK');
+console.log('  Cache SW         : perpus-' + VER);
