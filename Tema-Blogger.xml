@@ -326,8 +326,9 @@ function isbnGoogle_(isbn){
     .then(function(j){
       if(j && j.items && j.items.length){
         var v=j.items[0].volumeInfo||{};
+        var cov=(v.imageLinks?(v.imageLinks.thumbnail||v.imageLinks.smallThumbnail||''):'').replace(/^http:/,'https:');
         return { judul: v.title?(v.title+(v.subtitle?': '+v.subtitle:'')):'', pengarang:(v.authors||[]).join(', '),
-          penerbit:v.publisher||'', tahun:String(v.publishedDate||'').slice(0,4), kategori:(v.categories||[])[0]||'' };
+          penerbit:v.publisher||'', tahun:String(v.publishedDate||'').slice(0,4), kategori:(v.categories||[])[0]||'', cover:cov };
       }
       return null; // kosong / 429 -> coba sumber lain
     }).catch(function(){ return null; });
@@ -337,9 +338,10 @@ function isbnOpenLibrary_(isbn){
     .then(function(r){ return r.json(); })
     .then(function(j){
       var v=j['ISBN:'+isbn]; if(!v) return null;
+      var cov=v.cover?(v.cover.large||v.cover.medium||v.cover.small||''):'';
       return { judul:v.title||'', pengarang:(v.authors||[]).map(function(a){return a.name;}).join(', '),
         penerbit:(v.publishers&&v.publishers[0])?v.publishers[0].name:'', tahun:String(v.publish_date||'').replace(/[^0-9]/g,'').slice(-4),
-        kategori:(v.subjects&&v.subjects[0])?v.subjects[0].name:'' };
+        kategori:(v.subjects&&v.subjects[0])?v.subjects[0].name:'', cover:cov };
     }).catch(function(){ return null; });
 }
 function isiFormBuku_(d){
@@ -349,6 +351,10 @@ function isiFormBuku_(d){
   set('bk-penerbit', d.penerbit, true);
   set('bk-tahun', d.tahun, true);
   set('bk-kategori', d.kategori, false); // kategori tidak menimpa jika sudah diisi
+  if(d.cover){
+    var cu=el('bk-coverurl'); if(cu) cu.value=d.cover;
+    var pv=el('bk-cover-prev'); if(pv) pv.innerHTML='<img src="'+esc(d.cover)+'" class="h-20 mt-2 rounded shadow-sm"/>';
+  }
 }
 
 /* ===================== AUTOCOMPLETE / FILTER ID ==================== */
@@ -779,7 +785,7 @@ function formBuku(json){
       inp('bk-penerbit','Penerbit',b.penerbit)+inp('bk-tahun','Tahun',b.tahun)+
       inp('bk-kategori','Kategori',b.kategori)+inp('bk-rak','Lokasi Rak',b.rak)+
       inp('bk-stok','Jumlah Eksemplar (stok total)',b.stok_total||1,'col-span-2','number')+
-      '<div class="col-span-2"><label class="text-xs text-platinum-500">Cover Buku</label><input id="bk-cover" type="file" accept="image/*" class="w-full text-sm mt-1"/>'+(b.cover_url?'<img src="'+esc(driveImg(b.cover_url))+'" class="h-16 mt-2 rounded"/>':'')+'</div>'+
+      '<div class="col-span-2"><label class="text-xs text-platinum-500">Cover Buku <span class="text-platinum-400">— otomatis dari ISBN, atau upload sendiri</span></label><input id="bk-cover" type="file" accept="image/*" class="w-full text-sm mt-1"/><div id="bk-cover-prev">'+(b.cover_url?'<img src="'+esc(driveImg(b.cover_url))+'" class="h-20 mt-2 rounded shadow-sm"/>':'')+'</div></div>'+
     '</div>'+
     '<input type="hidden" id="bk-id" value="'+esc(b.id_buku||'')+'"/><input type="hidden" id="bk-coverurl" value="'+esc(b.cover_url||'')+'"/>'+
     '<div class="flex gap-2 mt-5">'+btn('Simpan','simpanBuku()','flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl')+btn('Batal','closeModal()','px-4 py-2.5 bg-platinum-100 rounded-xl')+'</div></div>');
