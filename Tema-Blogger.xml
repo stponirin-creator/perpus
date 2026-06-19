@@ -306,6 +306,51 @@ function stopScan(){
   }
 }
 
+/* ===================== ISBN -> data buku (online) ================
+   Coba Google Books dulu, kalau kosong/limit fallback ke Open Library. */
+function cariISBN(isbn){
+  isbn = String(isbn||'').replace(/[^0-9Xx]/g,'');
+  if(isbn.length<10){ toast('ISBN tidak valid (min. 10 digit).',false); return; }
+  loading(true);
+  isbnGoogle_(isbn).then(function(d){ return d || isbnOpenLibrary_(isbn); })
+    .then(function(d){ loading(false);
+      if(!d){ toast('Buku tidak ditemukan untuk ISBN '+isbn+'.',false); return; }
+      isiFormBuku_(d);
+      toast('Data buku terisi otomatis ✓');
+    })
+    .catch(function(){ loading(false); toast('Gagal mengambil data (cek koneksi internet).',false); });
+}
+function isbnGoogle_(isbn){
+  return fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:'+encodeURIComponent(isbn))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(j && j.items && j.items.length){
+        var v=j.items[0].volumeInfo||{};
+        return { judul: v.title?(v.title+(v.subtitle?': '+v.subtitle:'')):'', pengarang:(v.authors||[]).join(', '),
+          penerbit:v.publisher||'', tahun:String(v.publishedDate||'').slice(0,4), kategori:(v.categories||[])[0]||'' };
+      }
+      return null; // kosong / 429 -> coba sumber lain
+    }).catch(function(){ return null; });
+}
+function isbnOpenLibrary_(isbn){
+  return fetch('https://openlibrary.org/api/books?bibkeys=ISBN:'+encodeURIComponent(isbn)+'&format=json&jscmd=data')
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var v=j['ISBN:'+isbn]; if(!v) return null;
+      return { judul:v.title||'', pengarang:(v.authors||[]).map(function(a){return a.name;}).join(', '),
+        penerbit:(v.publishers&&v.publishers[0])?v.publishers[0].name:'', tahun:String(v.publish_date||'').replace(/[^0-9]/g,'').slice(-4),
+        kategori:(v.subjects&&v.subjects[0])?v.subjects[0].name:'' };
+    }).catch(function(){ return null; });
+}
+function isiFormBuku_(d){
+  function set(id,val,force){ var e=el(id); if(e && val && (force||!e.value)) e.value=val; }
+  set('bk-judul', d.judul, true);
+  set('bk-pengarang', d.pengarang, true);
+  set('bk-penerbit', d.penerbit, true);
+  set('bk-tahun', d.tahun, true);
+  set('bk-kategori', d.kategori, false); // kategori tidak menimpa jika sudah diisi
+}
+
 /* ===================== AUTOCOMPLETE / FILTER ID ==================== */
 /* Bantu petugas: ketik nama/judul -> muncul saran -> klik untuk isi ID.
    kind: 'member' (cari di Member) atau 'buku' (cari di Buku). */
@@ -365,7 +410,8 @@ var ICON = {
   key:'<circle cx="8" cy="14" r="4"/><path d="M10.8 11.2 21 1"/><path d="M16 6l3 3M14 8l2 2"/>',
   menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  scan:'<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M7 12h10"/>'
+  scan:'<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M7 12h10"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'
 };
 function svg(p, cls){ return '<svg class="'+(cls||'w-5 h-5')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
 
@@ -724,7 +770,12 @@ function formBuku(json){
     '<div class="grid grid-cols-2 gap-3">'+
       inp('bk-judul','Judul *',b.judul,'col-span-2')+
       inp('bk-pengarang','Pengarang',b.pengarang)+
-      '<div><label class="text-xs text-platinum-500">ISBN</label><div class="flex gap-2 mt-1"><input id="bk-isbn" value="'+esc(b.isbn||'')+'" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500"/>'+scanBtn("scanInto('bk-isbn')")+'</div></div>'+
+      '<div class="col-span-2"><label class="text-xs text-platinum-500">ISBN <span class="text-platinum-400">— scan/ketik lalu 🔎 untuk isi otomatis (Google Books)</span></label>'+
+        '<div class="flex gap-2 mt-1">'+
+          '<input id="bk-isbn" value="'+esc(b.isbn||'')+'" placeholder="cth: 9786020000011" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500" onkeydown="if(event.key===\'Enter\'){event.preventDefault();cariISBN(this.value)}"/>'+
+          '<button type="button" onclick="cariISBN(el(\'bk-isbn\').value)" title="Cari data buku dari ISBN" class="shrink-0 w-12 grid place-items-center bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition">'+svg(ICON.search,'w-5 h-5')+'</button>'+
+          scanBtn("scanInto('bk-isbn',cariISBN)")+
+        '</div></div>'+
       inp('bk-penerbit','Penerbit',b.penerbit)+inp('bk-tahun','Tahun',b.tahun)+
       inp('bk-kategori','Kategori',b.kategori)+inp('bk-rak','Lokasi Rak',b.rak)+
       inp('bk-stok','Jumlah Eksemplar (stok total)',b.stok_total||1,'col-span-2','number')+
