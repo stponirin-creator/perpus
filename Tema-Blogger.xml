@@ -17,6 +17,8 @@
 <script src='https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js'></script>
 <!-- SheetJS untuk baca/tulis file Excel (.xlsx) saat import -->
 <script src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'></script>
+<!-- html5-qrcode untuk scan barcode/QR via kamera HP -->
+<script src='https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'></script>
 
 <!-- Tailwind CSS STATIS (hasil build CLI; hanya kelas yang dipakai, tanpa CDN & tanpa warning) -->
 <style>/*<![CDATA[*/
@@ -86,6 +88,7 @@
 <div id='app' style='padding:24px;font-family:sans-serif;color:#566263'>Memuat aplikasi&#8230;</div>
 <div id='toast-wrap' class='fixed bottom-5 right-5 z-50 space-y-2 no-print'></div>
 <div id='modal-wrap'></div>
+<div id='scan-wrap'></div>
 <button id='btn-pasang' onclick='pasangPWA()' class='hidden fixed right-4 bottom-24 md:bottom-4 z-50 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-prem no-print'>📲 Pasang Aplikasi</button>
 
 <script>
@@ -251,6 +254,58 @@ function modal(html){
 }
 function closeModal(){ el('modal-wrap').innerHTML=''; }
 
+/* ===================== SCAN BARCODE (kamera HP) =================== */
+var _scanner=null, _scanCb=null;
+function scanBtn(onclick){
+  return '<button type="button" onclick="'+onclick+'" title="Scan barcode pakai kamera" class="shrink-0 w-12 grid place-items-center bg-platinum-100 hover:bg-platinum-200 text-platinum-700 rounded-xl transition">'+svg(ICON.scan,'w-5 h-5')+'</button>';
+}
+function scanInto(inputId, after){
+  scanBarcode(function(text){
+    var i=el(inputId);
+    if(i){ i.value=text; try{ i.focus(); }catch(e){} }
+    if(typeof after==='function') after(text);
+  });
+}
+function scanBarcode(onResult){
+  if(typeof Html5Qrcode==='undefined'){ toast('Modul scanner belum siap, coba lagi sebentar.',false); return; }
+  _scanCb=onResult;
+  el('scan-wrap').innerHTML =
+    '<div class="fixed inset-0 z-50 bg-platinum-900/70 flex items-center justify-center p-4 no-print" onclick="if(event.target===this)stopScan()">'+
+      '<div class="bg-white w-full max-w-sm rounded-2xl shadow-soft overflow-hidden">'+
+        '<div class="flex items-center justify-between px-4 py-3 border-b border-platinum-100"><h3 class="font-bold text-platinum-900">Scan Barcode</h3><button onclick="stopScan()" class="text-platinum-400 text-2xl leading-none">&times;</button></div>'+
+        '<div id="reader" style="width:100%"></div>'+
+        '<p class="text-xs text-platinum-500 p-3 text-center">Arahkan kamera ke barcode kartu member / label buku / ISBN.</p>'+
+      '</div>'+
+    '</div>';
+  try { _scanner = new Html5Qrcode('reader'); } catch(e){ toast('Gagal memulai scanner.',false); stopScan(); return; }
+  var fmts;
+  try {
+    var F = Html5QrcodeSupportedFormats;
+    fmts = [F.CODE_128, F.EAN_13, F.EAN_8, F.CODE_39, F.UPC_A, F.QR_CODE];
+  } catch(e){ fmts = undefined; }
+  _scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 150 }, formatsToSupport: fmts },
+    function(decoded){
+      var cb=_scanCb; _scanCb=null;
+      stopScan();
+      if(cb) cb(String(decoded).trim());
+    },
+    function(){ /* abaikan kegagalan per-frame */ }
+  ).catch(function(err){
+    toast('Tidak bisa membuka kamera. Izinkan akses kamera & pakai HTTPS.',false);
+    stopScan();
+  });
+}
+function stopScan(){
+  if(_scanner){
+    try { _scanner.stop().then(function(){ try{ _scanner.clear(); }catch(e){} _scanner=null; el('scan-wrap').innerHTML=''; }).catch(function(){ _scanner=null; el('scan-wrap').innerHTML=''; }); }
+    catch(e){ _scanner=null; el('scan-wrap').innerHTML=''; }
+  } else {
+    el('scan-wrap').innerHTML='';
+  }
+}
+
 /* ===================== AUTOCOMPLETE / FILTER ID ==================== */
 /* Bantu petugas: ketik nama/judul -> muncul saran -> klik untuk isi ID.
    kind: 'member' (cari di Member) atau 'buku' (cari di Buku). */
@@ -309,7 +364,8 @@ var ICON = {
   out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
   key:'<circle cx="8" cy="14" r="4"/><path d="M10.8 11.2 21 1"/><path d="M16 6l3 3M14 8l2 2"/>',
   menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  scan:'<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M7 12h10"/>'
 };
 function svg(p, cls){ return '<svg class="'+(cls||'w-5 h-5')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
 
@@ -515,8 +571,8 @@ function shellAdmin(active, content){
     '<div id="sidebar-bd" onclick="closeSidebar()" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden no-print"></div>'+
     '<aside id="sidebar" class="sidebar-prem w-64 shrink-0 flex flex-col no-print fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 transition-transform duration-300">'+
       '<div class="flex items-center gap-3 px-5 h-16 border-b border-white/10">'+
-        '<div class="w-9 h-9 rounded-xl bg-emerald-500 text-white grid place-items-center shadow-prem">'+svg(ICON.book)+'</div>'+
-        '<div class="min-w-0"><div class="font-bold text-white text-sm leading-tight tracking-tight truncate">Perpustakaan</div><div class="text-[11px] text-emerald-300/80 uppercase tracking-wider">'+esc(state.user?state.user.role:'')+'</div></div>'+
+        (state.info.logo_url?'<img src="'+esc(driveImg(state.info.logo_url))+'" class="w-9 h-9 rounded-xl object-cover shadow-prem shrink-0"/>':'<div class="w-9 h-9 rounded-xl bg-emerald-500 text-white grid place-items-center shadow-prem shrink-0">'+svg(ICON.book)+'</div>')+
+        '<div class="min-w-0"><div class="font-bold text-white text-sm leading-tight tracking-tight truncate">'+esc(state.info.nama_sekolah||'Perpustakaan')+'</div><div class="text-[11px] text-emerald-300/80 uppercase tracking-wider">'+esc(state.user?state.user.role:'')+'</div></div>'+
         '<button onclick="closeSidebar()" class="md:hidden ml-auto text-white/70 hover:text-white text-2xl leading-none px-1">&times;</button>'+
       '</div>'+
       '<nav class="space-y-1 flex-1 p-3 overflow-y-auto">'+nav+'</nav>'+
@@ -667,7 +723,8 @@ function formBuku(json){
     '<div class="p-6"><div class="flex items-center justify-between mb-4"><h3 class="font-bold text-lg">'+(b.id_buku?'Edit':'Tambah')+' Buku</h3><button onclick="closeModal()" class="text-platinum-400 text-xl">&times;</button></div>'+
     '<div class="grid grid-cols-2 gap-3">'+
       inp('bk-judul','Judul *',b.judul,'col-span-2')+
-      inp('bk-pengarang','Pengarang',b.pengarang)+inp('bk-isbn','ISBN',b.isbn)+
+      inp('bk-pengarang','Pengarang',b.pengarang)+
+      '<div><label class="text-xs text-platinum-500">ISBN</label><div class="flex gap-2 mt-1"><input id="bk-isbn" value="'+esc(b.isbn||'')+'" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500"/>'+scanBtn("scanInto('bk-isbn')")+'</div></div>'+
       inp('bk-penerbit','Penerbit',b.penerbit)+inp('bk-tahun','Tahun',b.tahun)+
       inp('bk-kategori','Kategori',b.kategori)+inp('bk-rak','Lokasi Rak',b.rak)+
       inp('bk-stok','Jumlah Eksemplar (stok total)',b.stok_total||1,'col-span-2','number')+
@@ -959,12 +1016,18 @@ function viewPinjam(){
       '<h3 class="font-bold text-lg mb-1">Peminjaman Buku</h3><p class="text-sm text-platinum-500 mb-5">Scan ID, atau ketik nama/judul lalu pilih dari daftar.</p>'+
       '<label class="text-xs text-platinum-500">ID Member <span class="text-platinum-400">— ketik nama untuk mencari</span></label>'+
       '<div class="relative mb-3">'+
-        '<input id="pj-member" placeholder="cth: SW0001 atau ketik nama" autocomplete="off" class="w-full px-4 py-3 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 font-mono" oninput="acSearch(\'member\',\'pj-member\')" onblur="acHide(\'pj-member\')" onkeydown="if(event.key===\'Enter\'){acHide(\'pj-member\');el(\'pj-buku\').focus()}"/>'+
+        '<div class="flex gap-2">'+
+          '<input id="pj-member" placeholder="cth: SW0001 atau ketik nama" autocomplete="off" class="flex-1 min-w-0 px-4 py-3 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 font-mono" oninput="acSearch(\'member\',\'pj-member\')" onblur="acHide(\'pj-member\')" onkeydown="if(event.key===\'Enter\'){acHide(\'pj-member\');el(\'pj-buku\').focus()}"/>'+
+          scanBtn("scanInto('pj-member',function(){el('pj-buku').focus()})")+
+        '</div>'+
         '<div id="pj-member-ac" class="ac-box"></div>'+
       '</div>'+
       '<label class="text-xs text-platinum-500">Eksemplar Buku <span class="text-platinum-400">— ketik judul, pilih eksemplar yang tersedia</span></label>'+
       '<div class="relative mb-4">'+
-        '<input id="pj-buku" placeholder="cth: BK0001-02 atau ketik judul" autocomplete="off" class="w-full px-4 py-3 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 font-mono" oninput="acSearch(\'eksemplar\',\'pj-buku\')" onblur="acHide(\'pj-buku\')" onkeydown="if(event.key===\'Enter\'){acHide(\'pj-buku\');doPinjam()}"/>'+
+        '<div class="flex gap-2">'+
+          '<input id="pj-buku" placeholder="cth: BK0001-02 atau ketik judul" autocomplete="off" class="flex-1 min-w-0 px-4 py-3 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 font-mono" oninput="acSearch(\'eksemplar\',\'pj-buku\')" onblur="acHide(\'pj-buku\')" onkeydown="if(event.key===\'Enter\'){acHide(\'pj-buku\');doPinjam()}"/>'+
+          scanBtn("scanInto('pj-buku')")+
+        '</div>'+
         '<div id="pj-buku-ac" class="ac-box"></div>'+
       '</div>'+
       btn('Proses Pinjam','doPinjam()','w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl')+
@@ -990,7 +1053,10 @@ function viewKembali(){
     '<div class="max-w-lg bg-white rounded-2xl shadow-soft p-6">'+
       '<h3 class="font-bold text-lg mb-1">Pengembalian Buku</h3><p class="text-sm text-platinum-500 mb-5">Scan kode transaksi/buku, atau ketik judul lalu pilih dari daftar.</p>'+
       '<div class="relative mb-4">'+
-        '<input id="kb-input" placeholder="Kode transaksi / eksemplar / ketik judul yang dipinjam" autocomplete="off" class="w-full px-4 py-3 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 font-mono" oninput="acSearch(\'eksemplarKembali\',\'kb-input\')" onblur="acHide(\'kb-input\')" onkeydown="if(event.key===\'Enter\'){acHide(\'kb-input\');doKembali()}"/>'+
+        '<div class="flex gap-2">'+
+          '<input id="kb-input" placeholder="Kode transaksi / eksemplar / ketik judul yang dipinjam" autocomplete="off" class="flex-1 min-w-0 px-4 py-3 rounded-xl border border-platinum-200 outline-none focus:border-emerald-500 font-mono" oninput="acSearch(\'eksemplarKembali\',\'kb-input\')" onblur="acHide(\'kb-input\')" onkeydown="if(event.key===\'Enter\'){acHide(\'kb-input\');doKembali()}"/>'+
+          scanBtn("scanInto('kb-input')")+
+        '</div>'+
         '<div id="kb-input-ac" class="ac-box"></div>'+
       '</div>'+
       btn('Proses Kembali','doKembali()','w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl')+
@@ -1421,7 +1487,12 @@ function uploadFile(file,jenis){
   }
   setupPWA(); // manifest awal (ikon default) supaya bisa dipasang sejak awal
   // ambil identitas sekolah utk header publik (tidak memblokir tampilan)
-  api('opacInfo',{}).then(function(i){ if(i){ state.info=i; setupPWA(); if(!location.hash || location.hash==='#/') router(); } }).catch(function(){});
+  api('opacInfo',{}).then(function(i){ if(i){ state.info=i; setupPWA();
+    var h=location.hash, mw=el('modal-wrap');
+    var modalOpen = mw && mw.innerHTML;
+    // segarkan tampilan agar nama/logo sekolah muncul (OPAC & area admin), tanpa ganggu form/modal
+    if(!modalOpen && (!h || h==='#/' || h.indexOf('#/admin')===0)) router();
+  } }).catch(function(){});
 })();
 //]]>
 </script>
