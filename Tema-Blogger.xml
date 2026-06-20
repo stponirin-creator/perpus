@@ -171,18 +171,25 @@ function setLink_(id, rel, href){
   l.setAttribute('href', href);
 }
 /* ikon default (kalau logo sekolah belum diisi): kotak emerald + huruf P */
+function _rr(ctx,x,y,w,h,r){ ctx.beginPath(); if(ctx.roundRect){ ctx.roundRect(x,y,w,h,r); } else { ctx.rect(x,y,w,h); } }
+/* Ikon aplikasi: tumpukan buku warna-warni (di-render ke PNG utk iOS apple-touch-icon). */
 function iconDefault(){
   try{
     var c=document.createElement('canvas'); c.width=512; c.height=512; var x=c.getContext('2d');
-    x.fillStyle='#0f3d33'; x.fillRect(0,0,512,512);
-    x.fillStyle='#10b981'; x.beginPath(); x.arc(256,256,210,0,Math.PI*2); x.fill();
-    x.fillStyle='#ffffff'; x.font='bold 300px Inter,Arial,sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('P',256,286);
+    _rr(x,0,0,512,512,110); x.fillStyle='#ffffff'; x.fill();              // latar putih
+    _rr(x,6,6,500,500,104); x.lineWidth=4; x.strokeStyle='#e6eae9'; x.stroke();
+    var books=[[106,316,300,'#f43f5e'],[122,262,270,'#f59e0b'],[100,208,312,'#10b981'],[128,154,256,'#3b82f6']];
+    x.save(); x.shadowColor='rgba(11,42,35,0.18)'; x.shadowBlur=14; x.shadowOffsetY=7;
+    books.forEach(function(b){ _rr(x,b[0],b[1],b[2],48,11); x.fillStyle=b[3]; x.fill(); });
+    x.restore();
+    books.forEach(function(b){ _rr(x,b[0]+b[2]-26,b[1]+8,18,32,5); x.fillStyle='#ffffff'; x.fill(); });
+    x.fillStyle='#fbbf24'; x.beginPath(); x.moveTo(156,154); x.lineTo(180,154); x.lineTo(180,226); x.lineTo(168,213); x.lineTo(156,226); x.closePath(); x.fill();
     return c.toDataURL('image/png');
   }catch(e){ return ''; }
 }
 function setupPWA(){
   var nama=(state.info && state.info.nama_sekolah) || 'Perpustakaan';
-  var ikon=(state.info && state.info.logo_url) ? driveImg(state.info.logo_url) : iconDefault();
+  var ikon=iconDefault(); // ikon aplikasi = tumpukan buku
   var base=location.origin + '/';
   var manifest={
     name: nama + ' — Perpustakaan', short_name: 'Perpus',
