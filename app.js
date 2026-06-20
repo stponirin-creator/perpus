@@ -2,7 +2,7 @@
    KONFIGURASI  -> GANTI DENGAN URL WEB APP /exec ANDA
    ====================================================================== */
 var CONFIG = {
-  API: 'https://script.google.com/macros/s/AKfycbwJniXjn_ga1r_fxIMo0svRNjLH82n9gZytoHUIgRKp90Kw9aSz5VqkQegVThIkZMh5/exec'
+  API: ''
 };
 
 /* Tangkap error apa pun supaya halaman tidak "blank" diam-diam:
