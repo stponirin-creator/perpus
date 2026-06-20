@@ -187,12 +187,17 @@ function iconDefault(){
     return c.toDataURL('image/png');
   }catch(e){ return ''; }
 }
+/* Nama gabungan: "Perpustakaan <nama sekolah>" (untuk header & nama aplikasi). */
+function namaApp(){
+  var n=(state.info && state.info.nama_sekolah)?String(state.info.nama_sekolah).trim():'';
+  return n ? ('Perpustakaan '+n) : 'Perpustakaan Sekolah';
+}
 function setupPWA(){
-  var nama=(state.info && state.info.nama_sekolah) || 'Perpustakaan';
+  var nama=namaApp();
   var ikon=iconDefault(); // ikon aplikasi = tumpukan buku
   var base=location.origin + '/';
   var manifest={
-    name: nama + ' — Perpustakaan', short_name: 'Perpus',
+    name: nama, short_name: 'Perpustakaan',
     start_url: base, scope: base, display: 'standalone', orientation: 'portrait',
     background_color: '#0f3d33', theme_color: '#0f3d33',
     icons: ikon ? [{src:ikon,sizes:'192x192',type:'image/png'},{src:ikon,sizes:'512x512',type:'image/png'}] : []
@@ -656,7 +661,7 @@ function shellAdmin(active, content){
     '<aside id="sidebar" class="sidebar-prem w-64 shrink-0 flex flex-col no-print fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 transition-transform duration-300">'+
       '<div class="flex items-center gap-3 px-5 h-16 border-b border-white/10">'+
         (state.info.logo_url?'<img src="'+esc(driveImg(state.info.logo_url))+'" class="w-9 h-9 rounded-xl object-cover shadow-prem shrink-0"/>':'<div class="w-9 h-9 rounded-xl bg-emerald-500 text-white grid place-items-center shadow-prem shrink-0">'+svg(ICON.book)+'</div>')+
-        '<div class="min-w-0"><div class="font-bold text-white text-sm leading-tight tracking-tight truncate">'+esc(state.info.nama_sekolah||'Perpustakaan')+'</div><div class="text-[11px] text-emerald-300/80 uppercase tracking-wider">'+esc(state.user?state.user.role:'')+'</div></div>'+
+        '<div class="min-w-0"><div class="font-bold text-white text-sm leading-tight tracking-tight truncate">'+esc(namaApp())+'</div><div class="text-[11px] text-emerald-300/80 uppercase tracking-wider">'+esc(state.user?state.user.role:'')+'</div></div>'+
         '<button onclick="closeSidebar()" class="md:hidden ml-auto text-white/70 hover:text-white text-2xl leading-none px-1">&times;</button>'+
       '</div>'+
       '<nav class="space-y-1 flex-1 p-3 overflow-y-auto">'+nav+'</nav>'+

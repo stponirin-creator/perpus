@@ -18,7 +18,7 @@ function need(cond, msg) { if (!cond) { console.error('GAGAL: ' + msg); process.
 function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 // ---- Ambil nama sekolah dari API (opsional; fallback bila gagal) ----
-let appName = 'Perpustakaan Sekolah';
+let school = '';
 if (API) {
   try {
     const ctrl = new AbortController();
@@ -32,13 +32,15 @@ if (API) {
     });
     clearTimeout(t);
     const j = await res.json();
-    if (j && j.ok && j.data && j.data.nama_sekolah) appName = String(j.data.nama_sekolah).trim();
-    console.log('Nama sekolah dari API:', appName);
+    if (j && j.ok && j.data && j.data.nama_sekolah) school = String(j.data.nama_sekolah).trim();
+    console.log('Nama sekolah dari API:', school || '(kosong)');
   } catch (e) {
     console.log('Peringatan: gagal ambil nama sekolah (' + e.message + '), pakai default.');
   }
 }
-const shortName = appName.length <= 12 ? appName : appName.split(/\s+/)[0].slice(0, 12);
+// Nama aplikasi gabungan: "Perpustakaan <nama sekolah>"
+const appName = school ? ('Perpustakaan ' + school) : 'Perpustakaan Sekolah';
+const shortName = 'Perpustakaan';
 
 // ---- 1) CSS Tailwind (sudah ter-inline) ----
 const tA = xml.indexOf('/*<![CDATA[*/');
